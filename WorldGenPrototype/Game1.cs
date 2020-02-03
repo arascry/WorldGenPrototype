@@ -1,4 +1,9 @@
-﻿using Microsoft.Xna.Framework;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 
@@ -11,6 +16,12 @@ namespace WorldGenPrototype
     {
         GraphicsDeviceManager graphics;
         SpriteBatch spriteBatch;
+        WorldManager worldManager;
+
+        Matrix cameraView;
+        private int previousWheelValue;
+        private float scaleFactor;
+        private MouseState oldState;
 
         public Game1()
         {
@@ -27,7 +38,8 @@ namespace WorldGenPrototype
         protected override void Initialize()
         {
             // TODO: Add your initialization logic here
-
+            this.IsMouseVisible = true;
+            Window.AllowUserResizing = true;
             base.Initialize();
         }
 
@@ -40,7 +52,18 @@ namespace WorldGenPrototype
             // Create a new SpriteBatch, which can be used to draw textures.
             spriteBatch = new SpriteBatch(GraphicsDevice);
 
-            // TODO: use this.Content to load your game content here
+            worldManager = new WorldManager(spriteBatch, this.Content);
+            worldManager.CreateWorld(new Vector2(400, 200));
+
+            previousWheelValue = 0;
+            scaleFactor = 0;
+
+            cameraView = new Matrix();
+            cameraView.Translation = new Vector3(0, 0, 0);
+            cameraView.M11 = 1;
+            cameraView.M22 = 1;
+            cameraView.M33 = 1;
+            cameraView.M44 = 1;
         }
 
         /// <summary>
@@ -60,11 +83,56 @@ namespace WorldGenPrototype
         protected override void Update(GameTime gameTime)
         {
             if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed || Keyboard.GetState().IsKeyDown(Keys.Escape))
+            {
                 Exit();
+            }
 
-            // TODO: Add your update logic here
+            MouseState newState = Mouse.GetState();
+
+            if (newState.LeftButton == ButtonState.Pressed && oldState.LeftButton == ButtonState.Released)
+            {
+                Vector2 mousePos = new Vector2((Mouse.GetState().X - cameraView.M41) / (worldManager.tileSize * cameraView.M11),
+                                               (Mouse.GetState().Y - cameraView.M42) / (worldManager.tileSize * cameraView.M11));
+
+                Vector2 adjMousePos = new Vector2((int)mousePos.X, (int)mousePos.Y);
+                Console.WriteLine("Tile Location = X: {0} || Y: {1}", (int)mousePos.X, (int)mousePos.Y);
+                Console.WriteLine("Clicked Tile Height is: {0}", worldManager.ReturnHeight(adjMousePos));
+            }
+
+            oldState = newState;
+
+            if (Mouse.GetState().ScrollWheelValue > previousWheelValue)
+            {
+                cameraView = Matrix.CreateScale(2) * cameraView;
+                previousWheelValue = Mouse.GetState().ScrollWheelValue;
+            }
+
+            if (Mouse.GetState().ScrollWheelValue < previousWheelValue)
+            {
+                cameraView = Matrix.CreateScale(.5f) * cameraView;
+                previousWheelValue = Mouse.GetState().ScrollWheelValue;
+            }
+
+            if (Keyboard.GetState().IsKeyDown(Keys.Up))
+                cameraView.Translation += new Vector3(0, 5, 0);
+
+            if (Keyboard.GetState().IsKeyDown(Keys.Down))
+                cameraView.Translation += new Vector3(0, -5, 0);
+
+            if (Keyboard.GetState().IsKeyDown(Keys.Left))
+                cameraView.Translation += new Vector3(5, 0, 0);
+
+            if (Keyboard.GetState().IsKeyDown(Keys.Right))
+                cameraView.Translation += new Vector3(-5, 0, 0);
+
+            if (Keyboard.GetState().IsKeyDown(Keys.Space))
 
             base.Update(gameTime);
+        }
+
+        static void MouseClicked(object sender, WorldClickEventArgs e)
+        {
+            Console.WriteLine("Mouse Clicked At: {0}", e.clickPos);
         }
 
         /// <summary>
@@ -74,9 +142,9 @@ namespace WorldGenPrototype
         protected override void Draw(GameTime gameTime)
         {
             GraphicsDevice.Clear(Color.CornflowerBlue);
-
-            // TODO: Add your drawing code here
-
+            spriteBatch.Begin(SpriteSortMode.Deferred, null, null, null, null, null, cameraView);
+            worldManager.Draw();
+            spriteBatch.End();
             base.Draw(gameTime);
         }
     }
